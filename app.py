@@ -25,11 +25,12 @@ def convert_xlsx_to_csv(file):
         return None
 
 # Funzione per processare il CSV e applicare il calcolo dello sconto
+# Funzione per processare il CSV e applicare il calcolo dello sconto
 def process_csv(data, discount_percentage, order_id, view_option):
     new_data = []
     current_model = None
     current_sizes = []
-    current_price = None
+    current_prices = []  # Ora raccogliamo i prezzi da "PRICE JOEY"
     current_confirmed = []
     current_shipped = []
     current_model_name = None
@@ -40,11 +41,11 @@ def process_csv(data, discount_percentage, order_id, view_option):
     for index, row in data.iterrows():
         if 'Modello/Colore:' in row.values:
             if current_model is not None:
-                for size, confirmed, shipped, upc in zip(current_sizes, current_confirmed, current_shipped, current_upc):
-                    new_data.append([current_model, size, current_price, confirmed, shipped, current_model_name, current_color_description, upc, discount_percentage, current_product_type, order_id])
+                for size, price, confirmed, shipped, upc in zip(current_sizes, current_prices, current_confirmed, current_shipped, current_upc):
+                    new_data.append([current_model, size, price, confirmed, shipped, current_model_name, current_color_description, upc, discount_percentage, current_product_type, order_id])
             current_model = row[row.values.tolist().index('Modello/Colore:') + 1]
-            current_price = row[row.values.tolist().index('Prezzo all\'ingrosso') + 1]
             current_sizes = []
+            current_prices = []  # Reset della lista prezzi
             current_confirmed = []
             current_shipped = []
             current_upc = []
@@ -56,18 +57,19 @@ def process_csv(data, discount_percentage, order_id, view_option):
             current_product_type = row[row.values.tolist().index('Tipo di prodotto:') + 1]
         elif pd.notna(row[0]) and row[0] not in ['Misura', 'Totale qtà:', '']:
             current_sizes.append(str(row[0]))
+            current_prices.append(float(row[6]))  # Colonna PRICE JOEY
             current_confirmed.append(str(row[5]))
             current_shipped.append(str(row[8]))
             current_upc.append(str(row[1]))
 
     if current_model is not None:
-        for size, confirmed, shipped, upc in zip(current_sizes, current_confirmed, current_shipped, current_upc):
-            new_data.append([current_model, size, current_price, confirmed, shipped, current_model_name, current_color_description, upc, discount_percentage, current_product_type, order_id])
+        for size, price, confirmed, shipped, upc in zip(current_sizes, current_prices, current_confirmed, current_shipped, current_upc):
+            new_data.append([current_model, size, price, confirmed, shipped, current_model_name, current_color_description, upc, discount_percentage, current_product_type, order_id])
 
     # Creazione del DataFrame finale con tutte le colonne richieste
     final_df = pd.DataFrame(
         new_data,
-        columns=['Modello/Colore', 'Misura', 'Prezzo all\'ingrosso', 'Confermati', 'Spediti', 'Nome del modello', 'Descrizione colore', 'Codice a Barre (UPC)', 'Percentuale sconto', 'Tipo di prodotto', 'ID_ORDINE']
+        columns=['Modello/Colore', 'Misura', 'Prezzo (PRICE JOEY)', 'Confermati', 'Spediti', 'Nome del modello', 'Descrizione colore', 'Codice a Barre (UPC)', 'Percentuale sconto', 'Tipo di prodotto', 'ID_ORDINE']
     )
 
     # Suddivisione del codice modello e colore
@@ -75,10 +77,10 @@ def process_csv(data, discount_percentage, order_id, view_option):
     final_df['Colore'] = final_df['Modello/Colore'].apply(lambda x: x.split('-')[1])
 
     # Conversioni e calcoli
-    final_df['Prezzo all\'ingrosso'] = final_df['Prezzo all\'ingrosso'].str.replace('€', '').str.replace(',', '.').astype(float)
+    final_df['Prezzo (PRICE JOEY)'] = pd.to_numeric(final_df['Prezzo (PRICE JOEY)'], errors='coerce').fillna(0)
     final_df['Confermati'] = pd.to_numeric(final_df['Confermati'], errors='coerce').fillna(0).astype(int)
     final_df['Spediti'] = pd.to_numeric(final_df['Spediti'], errors='coerce').fillna(0).astype(int)
-    final_df['Prezzo finale'] = final_df.apply(lambda row: row['Prezzo all\'ingrosso'] * (1 - float(row['Percentuale sconto']) / 100), axis=1)
+    final_df['Prezzo finale'] = final_df.apply(lambda row: row['Prezzo (PRICE JOEY)'] * (1 - float(row['Percentuale sconto']) / 100), axis=1)
     final_df['TOT CONFERMATI'] = final_df['Prezzo finale'] * final_df['Confermati']
     final_df['TOT SPEDITI'] = final_df['Prezzo finale'] * final_df['Spediti']
 
@@ -87,9 +89,9 @@ def process_csv(data, discount_percentage, order_id, view_option):
 
     # Selezione delle colonne in base alla scelta
     if view_option == "CONFERMATI":
-        final_df = final_df[['Modello/Colore', 'Descrizione colore', 'Codice', 'Nome del modello', 'Tipo di prodotto', 'Colore', 'Misura', 'Codice a Barre (UPC)', 'ID_ORDINE', 'Confermati', 'Prezzo all\'ingrosso', 'Percentuale sconto', 'Prezzo finale', 'TOT CONFERMATI']]
+        final_df = final_df[['Modello/Colore', 'Descrizione colore', 'Codice', 'Nome del modello', 'Tipo di prodotto', 'Colore', 'Misura', 'Codice a Barre (UPC)', 'ID_ORDINE', 'Confermati', 'Prezzo (PRICE JOEY)', 'Percentuale sconto', 'Prezzo finale', 'TOT CONFERMATI']]
     elif view_option == "SPEDITI":
-        final_df = final_df[['Modello/Colore', 'Descrizione colore', 'Codice', 'Nome del modello', 'Tipo di prodotto', 'Colore', 'Misura', 'Codice a Barre (UPC)', 'ID_ORDINE', 'Spediti', 'Prezzo all\'ingrosso', 'Percentuale sconto', 'Prezzo finale', 'TOT SPEDITI']]
+        final_df = final_df[['Modello/Colore', 'Descrizione colore', 'Codice', 'Nome del modello', 'Tipo di prodotto', 'Colore', 'Misura', 'Codice a Barre (UPC)', 'ID_ORDINE', 'Spediti', 'Prezzo (PRICE JOEY)', 'Percentuale sconto', 'Prezzo finale', 'TOT SPEDITI']]
 
     # Esportazione del DataFrame in Excel
     output = BytesIO()
@@ -97,6 +99,7 @@ def process_csv(data, discount_percentage, order_id, view_option):
         final_df.to_excel(writer, index=False)
 
     return output.getvalue(), final_df
+
 
 # Interfaccia Streamlit
 st.title("Nike order details")
