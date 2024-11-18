@@ -102,7 +102,7 @@ def process_csv(data, discount_percentage, order_id, view_option):
 
 
 # Interfaccia Streamlit
-st.title("JOEY Nike order details - NB: "PRICE JOEY" Column")
+st.title("JOEY Nike order details - NB *PRICE JOEY* Column")
 
 # Caricamento del file XLSX
 uploaded_file = st.file_uploader("Carica un file XLSX", type="xlsx")
